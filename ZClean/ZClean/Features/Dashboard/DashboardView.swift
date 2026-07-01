@@ -39,6 +39,39 @@ struct DashboardView: View {
         return Array(unique.prefix(8))
     }
 
+    private var showingDeleteAlertBinding: Binding<Bool> {
+        Binding(
+            get: { deletingJob != nil },
+            set: { newValue in
+                if !newValue {
+                    deletingJob = nil
+                }
+            }
+        )
+    }
+
+    private var showingCollectAlertBinding: Binding<Bool> {
+        Binding(
+            get: { pendingCollectJob != nil },
+            set: { newValue in
+                if !newValue {
+                    pendingCollectJob = nil
+                }
+            }
+        )
+    }
+
+    private var showingSaveErrorAlertBinding: Binding<Bool> {
+        Binding(
+            get: { saveErrorMessage != nil },
+            set: { newValue in
+                if !newValue {
+                    saveErrorMessage = nil
+                }
+            }
+        )
+    }
+
     var body: some View {
         List {
             Section {
@@ -181,10 +214,7 @@ struct DashboardView: View {
         }
         .alert(
             "Delete this job?",
-            isPresented: Binding(
-                get: { deletingJob != nil },
-                set: { if !$0 { deletingJob = nil } }
-            ),
+            isPresented: showingDeleteAlertBinding,
             presenting: deletingJob
         ) { job in
             Button("Delete", role: .destructive) {
@@ -202,10 +232,7 @@ struct DashboardView: View {
         }
         .alert(
             "Collect payment?",
-            isPresented: Binding(
-                get: { pendingCollectJob != nil },
-                set: { if !$0 { pendingCollectJob = nil } }
-            ),
+            isPresented: showingCollectAlertBinding,
             presenting: pendingCollectJob
         ) { job in
             Button("Confirm") {
@@ -220,10 +247,7 @@ struct DashboardView: View {
         }
         .alert(
             "Couldn’t save",
-            isPresented: Binding(
-                get: { saveErrorMessage != nil },
-                set: { if !$0 { saveErrorMessage = nil } }
-            )
+            isPresented: showingSaveErrorAlertBinding
         ) {
             Button("OK", role: .cancel) {
                 saveErrorMessage = nil

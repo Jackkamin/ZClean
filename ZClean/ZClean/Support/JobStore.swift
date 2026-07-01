@@ -20,8 +20,11 @@ enum JobStore {
         let descriptor = FetchDescriptor<Contact>()
         let contacts = try context.fetch(descriptor)
 
-        if let existing = contacts.first(where: { decryptedName(for: $0).caseInsensitiveCompare(trimmed) == .orderedSame }) {
-            return existing
+        for contact in contacts {
+            guard let decoded = try? NameCryptoService.shared.decrypt(contact.encryptedName) else { continue }
+            if decoded.caseInsensitiveCompare(trimmed) == .orderedSame {
+                return contact
+            }
         }
 
         let encrypted = try NameCryptoService.shared.encrypt(trimmed)
@@ -59,11 +62,16 @@ enum JobStore {
                 ) ?? .distantPast
                 return now >= showFrom
             }
-            .sorted {
-                if Calendar.current.isDate($0.scheduledDate, inSameDayAs: $1.scheduledDate) {
-                    return ($0.scheduledTime ?? .distantPast) < ($1.scheduledTime ?? .distantPast)
+            .sorted { lhs, rhs in
+                let lhsScheduledAt = scheduledAt(for: lhs)
+                let rhsScheduledAt = scheduledAt(for: rhs)
+                let lhsDistance = abs(lhsScheduledAt.timeIntervalSince(now))
+                let rhsDistance = abs(rhsScheduledAt.timeIntervalSince(now))
+
+                if lhsDistance == rhsDistance {
+                    return lhsScheduledAt < rhsScheduledAt
                 }
-                return $0.scheduledDate < $1.scheduledDate
+                return lhsDistance < rhsDistance
             }
     }
 

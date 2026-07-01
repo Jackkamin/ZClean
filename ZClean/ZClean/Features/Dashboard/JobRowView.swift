@@ -13,6 +13,7 @@ struct JobRowView: View {
     var body: some View {
         TimelineView(.periodic(from: .now, by: 60)) { timeline in
             let urgency = urgencyLevel(now: timeline.date)
+            let countdown = countdownText(now: timeline.date)
 
             HStack(spacing: 12) {
                 VStack(alignment: .leading, spacing: 4) {
@@ -20,11 +21,21 @@ struct JobRowView: View {
                         .font(.headline)
                         .lineLimit(1)
 
-                    Text(metadataText)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-                    .truncationMode(.tail)
+                    Text(dateText)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+
+                    Text(shiftText)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+
+                    Text(countdown)
+                        .font(.caption2.weight(.semibold))
+                        .foregroundStyle(countdownColor(urgency))
                 }
 
                 Spacer()
@@ -76,10 +87,19 @@ struct JobRowView: View {
         return calendar.date(bySettingHour: 9, minute: 0, second: 0, of: day) ?? day
     }
 
-    private var metadataText: String {
-        let datePart = scheduledDate.formatted(.dateTime.day().month(.abbreviated))
-        let timePart = scheduledTime?.formatted(.dateTime.hour().minute()) ?? "No time"
-        return "\(datePart) • \(timePart) • \(durationHours)h"
+    private var dateText: String {
+        scheduledDate.formatted(.dateTime.weekday(.abbreviated).day().month(.abbreviated).year())
+    }
+
+    private var shiftText: String {
+        guard scheduledTime != nil else {
+            return "Time not set • \(durationHours)h shift"
+        }
+
+        let start = scheduledAt.formatted(.dateTime.hour().minute())
+        let end = Calendar.current.date(byAdding: .hour, value: durationHours, to: scheduledAt)?
+            .formatted(.dateTime.hour().minute()) ?? "-"
+        return "Shift \(start) - \(end) (\(durationHours)h)"
     }
 
     private enum UrgencyLevel {

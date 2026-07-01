@@ -1,34 +1,38 @@
 import SwiftUI
+import SwiftData
 
 struct ManageJobsView: View {
-    let jobs: [Job]
+    @Query private var jobs: [Job]
     let onEdit: (Job, EditJobInput) -> Void
     let onDelete: (Job) -> Void
 
     @State private var selectedJob: Job?
     @State private var showingEditSheet = false
 
-    private var upcomingJobs: [Job] {
-        jobs
+    private var editableJobs: [Job] {
+        return jobs
+            // Always include all active jobs so none disappear from edit controls.
             .filter { $0.status == .upcoming }
             .sorted {
-                if Calendar.current.isDate($0.scheduledDate, inSameDayAs: $1.scheduledDate) {
-                    return ($0.scheduledTime ?? .distantPast) < ($1.scheduledTime ?? .distantPast)
+                let lhsUrgent = isUrgent($0)
+                let rhsUrgent = isUrgent($1)
+                if lhsUrgent != rhsUrgent {
+                    return lhsUrgent && !rhsUrgent
                 }
-                return $0.scheduledDate < $1.scheduledDate
+                return scheduledAt($0) < scheduledAt($1)
             }
     }
 
     var body: some View {
         List {
-            if upcomingJobs.isEmpty {
+            if editableJobs.isEmpty {
                 ContentUnavailableView(
-                    "No upcoming jobs",
+                    "No active/future jobs",
                     systemImage: "calendar.badge.exclamationmark",
                     description: Text("Jobs you create will appear here for editing.")
                 )
             } else {
-                ForEach(upcomingJobs) { job in
+                ForEach(editableJobs) { job in
                     HStack(spacing: 10) {
                         VStack(alignment: .leading, spacing: 3) {
                             Text(JobStore.decryptedName(for: job.contact))
@@ -86,6 +90,14 @@ struct ManageJobsView: View {
         guard job.isWeekly else { return false }
         let showFrom = Calendar.current.date(byAdding: .hour, value: -24, to: scheduledAt(job)) ?? .distantPast
         return Date() < showFrom
+    }
+
+    private func isUrgent(_ job: Job) -> Bool {
+        let now = Date()
+        let dueAt = scheduledAt(job)
+        guard dueAt >= now else { return false }
+        let in24Hours = Calendar.current.date(byAdding: .hour, value: 24, to: now) ?? now
+        return dueAt <= in24Hours
     }
 
     private func scheduledAt(_ job: Job) -> Date {

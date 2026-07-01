@@ -15,6 +15,8 @@ final class Job {
     var durationHours: Int = 1
     // CSV of weekday numbers (1...7) for weekly recurrence.
     var recurrenceWeekdaysRaw: String = ""
+    // Optional free-text notes shown with the job.
+    var jobDescription: String = ""
     var expectedAmount: Double
     var cashAmount: Double?
     var isWeekly: Bool
@@ -32,6 +34,7 @@ final class Job {
         scheduledTime: Date? = nil,
         durationHours: Int = 1,
         recurrenceWeekdays: [Int] = [],
+        jobDescription: String = "",
         expectedAmount: Double,
         cashAmount: Double? = nil,
         isWeekly: Bool = false,
@@ -46,6 +49,7 @@ final class Job {
         self.scheduledTime = scheduledTime
         self.durationHours = max(1, durationHours)
         self.recurrenceWeekdaysRaw = Job.serializeWeekdays(recurrenceWeekdays)
+        self.jobDescription = jobDescription
         self.expectedAmount = expectedAmount
         self.cashAmount = cashAmount
         self.isWeekly = isWeekly

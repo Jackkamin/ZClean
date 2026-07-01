@@ -23,6 +23,18 @@ struct DashboardView: View {
         JobStore.upcomingJobs(jobs)
     }
 
+    private var dashboardJobs: [Job] {
+        Array(upcomingJobs.prefix(1))
+    }
+
+    private var jobsThisWeekCount: Int {
+        jobs.filter { $0.status == .upcoming }.count
+    }
+
+    private var jobsThisWeekLabel: String {
+        jobsThisWeekCount == 1 ? "1 job this week" : "\(jobsThisWeekCount) jobs this week"
+    }
+
     private var completedJobs: [Job] {
         JobStore.completedJobs(jobs)
     }
@@ -99,7 +111,7 @@ struct DashboardView: View {
                         description: Text("Tap + to add a job or record payment.")
                     )
                 } else {
-                    ForEach(upcomingJobs) { job in
+                    ForEach(dashboardJobs) { job in
                         JobRowView(
                             name: JobStore.decryptedName(for: job.contact),
                             amount: job.expectedAmount,
@@ -123,9 +135,25 @@ struct DashboardView: View {
                             }
                         }
                     }
+
                 }
             } header: {
-                Label("Jobs", systemImage: "house.fill")
+                HStack {
+                    Label("Jobs", systemImage: "calendar")
+                    Spacer()
+                    NavigationLink {
+                        manageJobsDestination
+                    } label: {
+                        Text(jobsThisWeekLabel)
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(.secondary)
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 5)
+                            .background(Color.secondary.opacity(0.1))
+                            .clipShape(Capsule())
+                    }
+                    .buttonStyle(.plain)
+                }
             }
 
             Section {
@@ -167,22 +195,7 @@ struct DashboardView: View {
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 NavigationLink {
-                    ManageJobsView(
-                        jobs: jobs,
-                        onEdit: { job, input in
-                            edit(job: job, with: input)
-                        },
-                        onDelete: { job in
-                            NotificationService.shared.cancelNotification(id: job.notificationId)
-                            context.delete(job)
-                            do {
-                                try context.save()
-                                refreshMonthTotal()
-                            } catch {
-                                saveErrorMessage = "Failed to delete this job. \(error.localizedDescription)"
-                            }
-                        }
-                    )
+                    manageJobsDestination
                 } label: {
                     Label("Edit", systemImage: "slider.horizontal.3")
                 }
@@ -267,6 +280,15 @@ struct DashboardView: View {
                         .font(.system(size: 22, weight: .medium))
                         .foregroundStyle(.primary)
                 }
+                .padding(.horizontal, 28)
+                .padding(.vertical, 24)
+                .background(.ultraThinMaterial)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 22)
+                        .fill(Color.gray.opacity(0.14))
+                )
+                .clipShape(RoundedRectangle(cornerRadius: 22))
+                .shadow(color: .black.opacity(0.12), radius: 10, x: 0, y: 6)
                 .scaleEffect(paymentConfirmScale)
                 .opacity(paymentConfirmOpacity)
                 .compositingGroup()
@@ -291,6 +313,25 @@ struct DashboardView: View {
             return
         }
         animateMonthTotal(to: target)
+    }
+
+    @ViewBuilder
+    private var manageJobsDestination: some View {
+        ManageJobsView(
+            onEdit: { job, input in
+                edit(job: job, with: input)
+            },
+            onDelete: { job in
+                NotificationService.shared.cancelNotification(id: job.notificationId)
+                context.delete(job)
+                do {
+                    try context.save()
+                    refreshMonthTotal()
+                } catch {
+                    saveErrorMessage = "Failed to delete this job. \(error.localizedDescription)"
+                }
+            }
+        )
     }
 
     private func animateMonthTotal(to target: Double, duration: Double = 0.75) {
@@ -327,6 +368,7 @@ struct DashboardView: View {
                 scheduledTime: input.time,
                 durationHours: input.durationHours,
                 recurrenceWeekdays: input.recurrenceWeekdays,
+                jobDescription: input.jobDescription,
                 expectedAmount: input.amount,
                 isWeekly: input.isWeekly,
                 status: .upcoming
@@ -376,7 +418,7 @@ struct DashboardView: View {
         job.notificationId = nil
 
         if job.isWeekly {
-            let nextDate = nextRecurringDate(for: job)
+            let nextDate = nextRecurringDate(for: job, referenceDate: .now)
             let nextJob = Job(
                 contact: job.contact,
                 scheduledDate: nextDate,
@@ -433,11 +475,12 @@ struct DashboardView: View {
         }
     }
 
-    private func nextRecurringDate(for job: Job) -> Date {
+    private func nextRecurringDate(for job: Job, referenceDate: Date) -> Date {
         let calendar = Calendar.current
-        let start = calendar.startOfDay(for: job.scheduledDate)
+        let start = calendar.startOfDay(for: referenceDate)
+        let fallbackWeekday = calendar.component(.weekday, from: job.scheduledDate)
         let selected = job.recurrenceWeekdays.isEmpty
-            ? [calendar.component(.weekday, from: start)]
+            ? [fallbackWeekday]
             : job.recurrenceWeekdays
         let currentWeekday = calendar.component(.weekday, from: start)
         let nextOffset = selected

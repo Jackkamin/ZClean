@@ -2,6 +2,7 @@ import SwiftUI
 
 struct AddJobInput {
     var clientName: String
+    var jobDescription: String = ""
     var amount: Double
     var date: Date
     var time: Date?
@@ -17,9 +18,9 @@ struct AddJobSheet: View {
     @Environment(\.dismiss) private var dismiss
 
     @State private var name = ""
+    @State private var jobDescription = ""
     @State private var amountText = ""
     @State private var date = Date()
-    @State private var includeTime = false
     @State private var time = Date()
     @State private var durationHours = 2
     @State private var isWeekly = false
@@ -39,6 +40,9 @@ struct AddJobSheet: View {
                 Section {
                     TextField("Client name", text: $name)
                         .textInputAutocapitalization(.words)
+
+                    TextField("Description (optional)", text: $jobDescription, axis: .vertical)
+                        .lineLimit(2...4)
 
                     if !recentNames.isEmpty {
                         ScrollView(.horizontal, showsIndicators: false) {
@@ -65,10 +69,7 @@ struct AddJobSheet: View {
 
                 Section {
                     DatePicker("Date", selection: $date, displayedComponents: .date)
-                    Toggle("Set a time", isOn: $includeTime)
-                    if includeTime {
-                        DatePicker("Time", selection: $time, displayedComponents: .hourAndMinute)
-                    }
+                    TimePresetPicker(selectedTime: $time)
                     Stepper(value: $durationHours, in: 1...4) {
                         Label("\(durationHours) \(durationHours == 1 ? "hour" : "hours")", systemImage: "clock")
                     }
@@ -90,9 +91,10 @@ struct AddJobSheet: View {
                         guard let amount = parsedAmount, amount > 0 else { return }
                         let input = AddJobInput(
                             clientName: name.trimmingCharacters(in: .whitespacesAndNewlines),
+                            jobDescription: jobDescription.trimmingCharacters(in: .whitespacesAndNewlines),
                             amount: amount,
                             date: date,
-                            time: includeTime ? time : nil,
+                            time: time,
                             durationHours: durationHours,
                             recurrenceWeekdays: isWeekly ? recurrenceWeekdays.sorted() : [],
                             isWeekly: isWeekly
@@ -104,6 +106,7 @@ struct AddJobSheet: View {
                 }
             }
             .onAppear {
+                snapTimeToPresetIfNeeded()
                 if recurrenceWeekdays.isEmpty {
                     recurrenceWeekdays = [Calendar.current.component(.weekday, from: date)]
                 }
@@ -121,31 +124,47 @@ struct AddJobSheet: View {
         }
     }
 
+    private func snapTimeToPresetIfNeeded() {
+        let presetHours = [9, 10, 11, 12, 13, 14, 15, 16]
+        let selectedHour = Calendar.current.component(.hour, from: time)
+        guard !presetHours.contains(selectedHour) else { return }
+        time = Calendar.current.date(bySettingHour: 9, minute: 0, second: 0, of: time) ?? time
+    }
+
     private var weekdayPicker: some View {
         let weekdays = Array(1...7)
         let symbols = DateFormatter().shortWeekdaySymbols ?? ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
 
-        return VStack(alignment: .leading, spacing: 8) {
-            Text("Repeats on")
-                .font(.caption)
-                .foregroundStyle(.secondary)
+        return ViewThatFits(in: .horizontal) {
+            HStack(spacing: 6) {
+                ForEach(weekdays, id: \.self) { day in
+                    weekdayButton(day: day, label: symbols[day - 1])
+                }
+            }
             LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 6), count: 4), spacing: 6) {
                 ForEach(weekdays, id: \.self) { day in
-                    let selected = recurrenceWeekdays.contains(day)
-                    Button(symbols[day - 1]) {
-                        if selected {
-                            recurrenceWeekdays.remove(day)
-                            if recurrenceWeekdays.isEmpty {
-                                recurrenceWeekdays.insert(day)
-                            }
-                        } else {
-                            recurrenceWeekdays.insert(day)
-                        }
-                    }
-                    .buttonStyle(.bordered)
-                    .tint(selected ? .blue : .gray)
+                    weekdayButton(day: day, label: symbols[day - 1])
                 }
             }
         }
+    }
+
+    @ViewBuilder
+    private func weekdayButton(day: Int, label: String) -> some View {
+        let selected = recurrenceWeekdays.contains(day)
+        Button(label) {
+            if selected {
+                recurrenceWeekdays.remove(day)
+                if recurrenceWeekdays.isEmpty {
+                    recurrenceWeekdays.insert(day)
+                }
+            } else {
+                recurrenceWeekdays.insert(day)
+            }
+        }
+        .buttonStyle(.bordered)
+        .tint(selected ? .blue : .gray)
+        .font(.caption.weight(.semibold))
+        .frame(minWidth: 40)
     }
 }

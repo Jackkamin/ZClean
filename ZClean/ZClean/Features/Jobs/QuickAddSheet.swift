@@ -1,21 +1,20 @@
 import SwiftUI
 
-struct AddJobInput {
-    var clientName: String
-    var amount: Double
-    var date: Date
-    var time: Date?
-    var durationHours: Int
-    var recurrenceWeekdays: [Int]
-    var isWeekly: Bool
-}
+struct QuickAddSheet: View {
+    enum Mode: String, CaseIterable, Identifiable {
+        case addJob = "Add Job"
+        case gotPaid = "Get Paid"
 
-struct AddJobSheet: View {
+        var id: String { rawValue }
+    }
+
     let recentNames: [String]
-    let onSave: (AddJobInput) -> Void
+    let onAddJob: (AddJobInput) -> Void
+    let onGotPaid: (GotPaidInput) -> Void
 
     @Environment(\.dismiss) private var dismiss
 
+    @State private var mode: Mode = .addJob
     @State private var name = ""
     @State private var amountText = ""
     @State private var date = Date()
@@ -33,9 +32,22 @@ struct AddJobSheet: View {
         return Double(normalized)
     }
 
+    private var canSave: Bool {
+        !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && (parsedAmount ?? 0) > 0
+    }
+
     var body: some View {
         NavigationStack {
             Form {
+                Section {
+                    Picker("Mode", selection: $mode) {
+                        ForEach(Mode.allCases) { option in
+                            Text(option.rawValue).tag(option)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                }
+
                 Section {
                     TextField("Client name", text: $name)
                         .textInputAutocapitalization(.words)
@@ -44,10 +56,8 @@ struct AddJobSheet: View {
                         ScrollView(.horizontal, showsIndicators: false) {
                             HStack(spacing: 8) {
                                 ForEach(recentNames, id: \.self) { recent in
-                                    Button(recent) {
-                                        name = recent
-                                    }
-                                    .buttonStyle(.bordered)
+                                    Button(recent) { name = recent }
+                                        .buttonStyle(.bordered)
                                 }
                             }
                         }
@@ -63,44 +73,58 @@ struct AddJobSheet: View {
                     Label("Payment", systemImage: "sterlingsign.circle.fill")
                 }
 
-                Section {
-                    DatePicker("Date", selection: $date, displayedComponents: .date)
-                    Toggle("Set a time", isOn: $includeTime)
-                    if includeTime {
-                        DatePicker("Time", selection: $time, displayedComponents: .hourAndMinute)
+                if mode == .addJob {
+                    Section {
+                        DatePicker("Date", selection: $date, displayedComponents: .date)
+                        Toggle("Set a time", isOn: $includeTime)
+                        if includeTime {
+                            DatePicker("Time", selection: $time, displayedComponents: .hourAndMinute)
+                        }
+                        Stepper(value: $durationHours, in: 1...4) {
+                            Label("\(durationHours) \(durationHours == 1 ? "hour" : "hours")", systemImage: "clock")
+                        }
+                        Toggle("Weekly repeat", isOn: $isWeekly)
+                        if isWeekly {
+                            weekdayPicker
+                        }
+                    } header: {
+                        Label("When", systemImage: "calendar.badge.clock")
                     }
-                    Stepper(value: $durationHours, in: 1...4) {
-                        Label("\(durationHours) \(durationHours == 1 ? "hour" : "hours")", systemImage: "clock")
-                    }
-                    Toggle("Weekly repeat", isOn: $isWeekly)
-                    if isWeekly {
-                        weekdayPicker
-                    }
-                } header: {
-                    Label("When", systemImage: "calendar.badge.clock")
                 }
             }
-            .navigationTitle("Add job")
+            .navigationTitle("Quick add")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { dismiss() }
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Save") {
+                    Button(mode == .addJob ? "Save Job" : "Save Payment") {
                         guard let amount = parsedAmount, amount > 0 else { return }
-                        let input = AddJobInput(
-                            clientName: name.trimmingCharacters(in: .whitespacesAndNewlines),
-                            amount: amount,
-                            date: date,
-                            time: includeTime ? time : nil,
-                            durationHours: durationHours,
-                            recurrenceWeekdays: isWeekly ? recurrenceWeekdays.sorted() : [],
-                            isWeekly: isWeekly
-                        )
-                        onSave(input)
+                        let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
+
+                        if mode == .addJob {
+                            onAddJob(
+                                AddJobInput(
+                                    clientName: trimmedName,
+                                    amount: amount,
+                                    date: date,
+                                    time: includeTime ? time : nil,
+                                    durationHours: durationHours,
+                                    recurrenceWeekdays: isWeekly ? recurrenceWeekdays.sorted() : [],
+                                    isWeekly: isWeekly
+                                )
+                            )
+                        } else {
+                            onGotPaid(
+                                GotPaidInput(
+                                    clientName: trimmedName,
+                                    amount: amount
+                                )
+                            )
+                        }
                         dismiss()
                     }
-                    .disabled(name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || parsedAmount == nil)
+                    .disabled(!canSave)
                 }
             }
             .onAppear {

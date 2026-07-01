@@ -13,6 +13,8 @@ final class Job {
     var scheduledTime: Date?
     // Default value keeps older stored records compatible after schema updates.
     var durationHours: Int = 1
+    // CSV of weekday numbers (1...7) for weekly recurrence.
+    var recurrenceWeekdaysRaw: String = ""
     var expectedAmount: Double
     var cashAmount: Double?
     var isWeekly: Bool
@@ -29,6 +31,7 @@ final class Job {
         scheduledDate: Date,
         scheduledTime: Date? = nil,
         durationHours: Int = 1,
+        recurrenceWeekdays: [Int] = [],
         expectedAmount: Double,
         cashAmount: Double? = nil,
         isWeekly: Bool = false,
@@ -42,6 +45,7 @@ final class Job {
         self.scheduledDate = scheduledDate
         self.scheduledTime = scheduledTime
         self.durationHours = max(1, durationHours)
+        self.recurrenceWeekdaysRaw = Job.serializeWeekdays(recurrenceWeekdays)
         self.expectedAmount = expectedAmount
         self.cashAmount = cashAmount
         self.isWeekly = isWeekly
@@ -54,5 +58,34 @@ final class Job {
     var status: JobStatus {
         get { JobStatus(rawValue: statusRaw) ?? .upcoming }
         set { statusRaw = newValue.rawValue }
+    }
+
+    var recurrenceWeekdays: [Int] {
+        get {
+            recurrenceWeekdaysRaw
+                .split(separator: ",")
+                .compactMap { Int($0) }
+                .filter { (1...7).contains($0) }
+                .sorted()
+        }
+        set {
+            recurrenceWeekdaysRaw = Job.serializeWeekdays(newValue)
+        }
+    }
+
+    private static func serializeWeekdays(_ weekdays: [Int]) -> String {
+        weekdays
+            .filter { (1...7).contains($0) }
+            .removingDuplicates()
+            .sorted()
+            .map(String.init)
+            .joined(separator: ",")
+    }
+}
+
+private extension Array where Element: Hashable {
+    func removingDuplicates() -> [Element] {
+        var seen = Set<Element>()
+        return filter { seen.insert($0).inserted }
     }
 }

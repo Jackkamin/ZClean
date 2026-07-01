@@ -20,20 +20,11 @@ struct JobRowView: View {
                         .font(.headline)
                         .lineLimit(1)
 
-                    Text(countdownText(now: timeline.date))
-                        .font(.caption)
-                        .fontWeight(urgency == .urgent || urgency == .overdue ? .semibold : .regular)
-                        .foregroundStyle(countdownColor(urgency))
-
-                    HStack(spacing: 8) {
-                        Text(scheduledDate, format: .dateTime.day().month(.abbreviated))
-                        if let scheduledTime {
-                            Text(scheduledTime, format: .dateTime.hour().minute())
-                        }
-                        Label("\(durationHours)h", systemImage: "clock")
-                    }
+                    Text(metadataText)
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
                 }
 
                 Spacer()
@@ -64,7 +55,7 @@ struct JobRowView: View {
                 value: pulse
             )
             .onAppear {
-                pulse = true
+                pulse = urgency == .urgent || urgency == .overdue
             }
         }
         .padding(.vertical, 6)
@@ -85,6 +76,12 @@ struct JobRowView: View {
         return calendar.date(bySettingHour: 9, minute: 0, second: 0, of: day) ?? day
     }
 
+    private var metadataText: String {
+        let datePart = scheduledDate.formatted(.dateTime.day().month(.abbreviated))
+        let timePart = scheduledTime?.formatted(.dateTime.hour().minute()) ?? "No time"
+        return "\(datePart) • \(timePart) • \(durationHours)h"
+    }
+
     private enum UrgencyLevel {
         case normal
         case soon
@@ -95,8 +92,8 @@ struct JobRowView: View {
     private func urgencyLevel(now: Date) -> UrgencyLevel {
         let seconds = scheduledAt.timeIntervalSince(now)
         if seconds <= 0 { return .overdue }
-        if seconds <= 2 * 3600 { return .urgent }
-        if seconds <= 24 * 3600 { return .soon }
+        if seconds <= 90 * 60 { return .urgent }
+        if seconds <= 12 * 3600 { return .soon }
         return .normal
     }
 

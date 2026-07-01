@@ -46,8 +46,19 @@ enum JobStore {
     }
 
     static func upcomingJobs(_ jobs: [Job]) -> [Job] {
-        jobs
-            .filter { $0.status == .upcoming }
+        let now = Date()
+        return jobs
+            .filter { job in
+                guard job.status == .upcoming else { return false }
+                guard job.isWeekly else { return true }
+
+                let showFrom = Calendar.current.date(
+                    byAdding: .hour,
+                    value: -24,
+                    to: scheduledAt(for: job)
+                ) ?? .distantPast
+                return now >= showFrom
+            }
             .sorted {
                 if Calendar.current.isDate($0.scheduledDate, inSameDayAs: $1.scheduledDate) {
                     return ($0.scheduledTime ?? .distantPast) < ($1.scheduledTime ?? .distantPast)
@@ -60,5 +71,20 @@ enum JobStore {
         jobs
             .filter { $0.status == .completed }
             .sorted { ($0.completedAt ?? .distantPast) > ($1.completedAt ?? .distantPast) }
+    }
+
+    private static func scheduledAt(for job: Job) -> Date {
+        let calendar = Calendar.current
+        let day = calendar.startOfDay(for: job.scheduledDate)
+        if let time = job.scheduledTime {
+            let comps = calendar.dateComponents([.hour, .minute], from: time)
+            return calendar.date(
+                bySettingHour: comps.hour ?? 9,
+                minute: comps.minute ?? 0,
+                second: 0,
+                of: day
+            ) ?? day
+        }
+        return calendar.date(bySettingHour: 9, minute: 0, second: 0, of: day) ?? day
     }
 }

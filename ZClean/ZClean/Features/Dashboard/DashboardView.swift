@@ -7,14 +7,14 @@ struct DashboardView: View {
     @Query private var contacts: [Contact]
 
     @State private var showingAddJob = false
-    @State private var showingGotPaid = false
-    @State private var selectedForCollect: Job?
+    @State private var pendingCollectJob: Job?
     @State private var selectedForEdit: Job?
-    @State private var showingCollectSheet = false
     @State private var showingEditSheet = false
     @State private var deletingJob: Job?
     @State private var monthTotal = 0.0
     @State private var saveErrorMessage: String?
+    @State private var successMessage: String?
+    @State private var successAnimationTick = 0
 
     private var upcomingJobs: [Job] {
         JobStore.upcomingJobs(jobs)
@@ -22,6 +22,10 @@ struct DashboardView: View {
 
     private var completedJobs: [Job] {
         JobStore.completedJobs(jobs)
+    }
+
+    private var recentHistory: [Job] {
+        Array(completedJobs.prefix(3))
     }
 
     private var recentNames: [String] {
@@ -57,7 +61,7 @@ struct DashboardView: View {
                     ContentUnavailableView(
                         "No jobs today",
                         systemImage: "calendar.badge.plus",
-                        description: Text("Add a job or tap Got paid.")
+                        description: Text("Tap + to add a job or record payment.")
                     )
                 } else {
                     ForEach(upcomingJobs) { job in
@@ -68,8 +72,7 @@ struct DashboardView: View {
                             scheduledTime: job.scheduledTime,
                             durationHours: job.durationHours,
                             onCollect: {
-                                selectedForCollect = job
-                                showingCollectSheet = true
+                                pendingCollectJob = job
                             }
                         )
                         .contentShape(Rectangle())
@@ -89,51 +92,83 @@ struct DashboardView: View {
             } header: {
                 Label("Jobs", systemImage: "house.fill")
             }
+
+            Section {
+                if recentHistory.isEmpty {
+                    Text("No recent payments yet.")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                        .padding(.vertical, 6)
+                } else {
+                    ForEach(recentHistory) { job in
+                        HStack(spacing: 10) {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(JobStore.decryptedName(for: job.contact))
+                                    .font(.subheadline.weight(.semibold))
+                                    .lineLimit(1)
+                                Text((job.completedAt ?? job.createdAt), format: .dateTime.day().month(.abbreviated))
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                            Spacer()
+                            Text(Currency.gbp(job.cashAmount ?? job.expectedAmount))
+                                .font(.subheadline.weight(.semibold))
+                        }
+                        .padding(.vertical, 2)
+                    }
+                }
+
+                NavigationLink {
+                    HistoryView(jobs: completedJobs)
+                } label: {
+                    Text("More...")
+                        .font(.subheadline.weight(.semibold))
+                }
+            } header: {
+                Label("Recent payments", systemImage: "clock.arrow.circlepath")
+            }
         }
         .navigationTitle("Dashboard")
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 NavigationLink {
-                    HistoryView(jobs: completedJobs)
+                    ManageJobsView(
+                        jobs: jobs,
+                        onEdit: { job, input in
+                            edit(job: job, with: input)
+                        },
+                        onDelete: { job in
+                            NotificationService.shared.cancelNotification(id: job.notificationId)
+                            context.delete(job)
+                            do {
+                                try context.save()
+                                refreshMonthTotal()
+                            } catch {
+                                saveErrorMessage = "Failed to delete this job. \(error.localizedDescription)"
+                            }
+                        }
+                    )
                 } label: {
-                    Label("More", systemImage: "ellipsis.circle")
+                    Label("Edit", systemImage: "slider.horizontal.3")
                 }
             }
             ToolbarItemGroup(placement: .bottomBar) {
                 Button {
                     showingAddJob = true
                 } label: {
-                    Label("Add job", systemImage: "plus.circle.fill")
+                    Label("Add", systemImage: "plus.circle.fill")
                 }
                     .buttonStyle(.borderedProminent)
-                    .accessibilityHint("Add a new cleaning job")
+                    .accessibilityHint("Add a new cleaning job or record payment")
                 Spacer()
-                Button {
-                    showingGotPaid = true
-                } label: {
-                    Label("Got paid", systemImage: "sterlingsign.circle.fill")
-                }
-                    .buttonStyle(.bordered)
-                    .accessibilityHint("Record cash without a scheduled job")
             }
         }
         .sheet(isPresented: $showingAddJob) {
-            AddJobSheet(recentNames: recentNames, onSave: addJob)
-        }
-        .sheet(isPresented: $showingGotPaid) {
-            GotPaidSheet(recentNames: recentNames, onSave: gotPaid)
-        }
-        .sheet(isPresented: $showingCollectSheet, onDismiss: {
-            selectedForCollect = nil
-        }) {
-            if let job = selectedForCollect {
-                CollectPaymentSheet(
-                    clientName: JobStore.decryptedName(for: job.contact),
-                    suggestedAmount: job.expectedAmount
-                ) { collected in
-                    collectPayment(job: job, amount: collected)
-                }
-            }
+            QuickAddSheet(
+                recentNames: recentNames,
+                onAddJob: addJob,
+                onGotPaid: gotPaid
+            )
         }
         .sheet(isPresented: $showingEditSheet, onDismiss: {
             selectedForEdit = nil
@@ -166,6 +201,24 @@ struct DashboardView: View {
             Text("This cannot be undone.")
         }
         .alert(
+            "Collect payment?",
+            isPresented: Binding(
+                get: { pendingCollectJob != nil },
+                set: { if !$0 { pendingCollectJob = nil } }
+            ),
+            presenting: pendingCollectJob
+        ) { job in
+            Button("Confirm") {
+                collectPayment(job: job, amount: job.expectedAmount)
+                pendingCollectJob = nil
+            }
+            Button("Cancel", role: .cancel) {
+                pendingCollectJob = nil
+            }
+        } message: { job in
+            Text("Collected \(Currency.gbp(job.expectedAmount)) from \(JobStore.decryptedName(for: job.contact))?")
+        }
+        .alert(
             "Couldn’t save",
             isPresented: Binding(
                 get: { saveErrorMessage != nil },
@@ -178,6 +231,21 @@ struct DashboardView: View {
         } message: {
             Text(saveErrorMessage ?? "Please try again.")
         }
+        .overlay(alignment: .bottom) {
+            if let successMessage {
+                Label(successMessage, systemImage: "checkmark.circle.fill")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 10)
+                    .background(Color.green.opacity(0.95))
+                    .clipShape(Capsule())
+                    .padding(.bottom, 80)
+                    .symbolEffect(.bounce, value: successAnimationTick)
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+            }
+        }
+        .animation(.spring(response: 0.3, dampingFraction: 0.85), value: successMessage)
         .task {
             refreshMonthTotal()
         }
@@ -200,6 +268,7 @@ struct DashboardView: View {
                 scheduledDate: input.date,
                 scheduledTime: input.time,
                 durationHours: input.durationHours,
+                recurrenceWeekdays: input.recurrenceWeekdays,
                 expectedAmount: input.amount,
                 isWeekly: input.isWeekly,
                 status: .upcoming
@@ -249,12 +318,13 @@ struct DashboardView: View {
         job.notificationId = nil
 
         if job.isWeekly {
-            let nextDate = Calendar.current.date(byAdding: .day, value: 7, to: job.scheduledDate) ?? job.scheduledDate
+            let nextDate = nextRecurringDate(for: job)
             let nextJob = Job(
                 contact: job.contact,
                 scheduledDate: nextDate,
                 scheduledTime: job.scheduledTime,
                 durationHours: job.durationHours,
+                recurrenceWeekdays: job.recurrenceWeekdays,
                 expectedAmount: job.expectedAmount,
                 isWeekly: true,
                 status: .upcoming
@@ -274,6 +344,15 @@ struct DashboardView: View {
         do {
             try context.save()
             refreshMonthTotal()
+            let name = JobStore.decryptedName(for: job.contact)
+            successMessage = "Paid \(Currency.gbp(amount)) from \(name)"
+            successAnimationTick += 1
+            Task { @MainActor in
+                try? await Task.sleep(nanoseconds: 1_600_000_000)
+                if self.successMessage != nil {
+                    self.successMessage = nil
+                }
+            }
         } catch {
             saveErrorMessage = "Failed to collect payment. \(error.localizedDescription)"
         }
@@ -284,6 +363,7 @@ struct DashboardView: View {
         job.scheduledDate = input.date
         job.scheduledTime = input.time
         job.durationHours = input.durationHours
+        job.recurrenceWeekdays = input.recurrenceWeekdays
         job.isWeekly = input.isWeekly
 
         NotificationService.shared.cancelNotification(id: job.notificationId)
@@ -301,5 +381,22 @@ struct DashboardView: View {
                 saveErrorMessage = "Failed to update this job. \(error.localizedDescription)"
             }
         }
+    }
+
+    private func nextRecurringDate(for job: Job) -> Date {
+        let calendar = Calendar.current
+        let start = calendar.startOfDay(for: job.scheduledDate)
+        let selected = job.recurrenceWeekdays.isEmpty
+            ? [calendar.component(.weekday, from: start)]
+            : job.recurrenceWeekdays
+        let currentWeekday = calendar.component(.weekday, from: start)
+        let nextOffset = selected
+            .map { day -> Int in
+                let delta = (day - currentWeekday + 7) % 7
+                return delta == 0 ? 7 : delta
+            }
+            .min() ?? 7
+
+        return calendar.date(byAdding: .day, value: nextOffset, to: start) ?? start
     }
 }

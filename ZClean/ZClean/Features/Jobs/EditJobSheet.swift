@@ -5,6 +5,7 @@ struct EditJobInput {
     var date: Date
     var time: Date?
     var durationHours: Int
+    var recurrenceWeekdays: [Int]
     var isWeekly: Bool
 }
 
@@ -19,6 +20,7 @@ struct EditJobSheet: View {
     @State private var time: Date
     @State private var durationHours: Int
     @State private var isWeekly: Bool
+    @State private var recurrenceWeekdays: Set<Int>
 
     private var parsedAmount: Double? {
         let normalized = amountText
@@ -37,6 +39,8 @@ struct EditJobSheet: View {
         _time = State(initialValue: job.scheduledTime ?? .now)
         _durationHours = State(initialValue: job.durationHours)
         _isWeekly = State(initialValue: job.isWeekly)
+        let defaults = job.recurrenceWeekdays
+        _recurrenceWeekdays = State(initialValue: Set(defaults.isEmpty ? [Calendar.current.component(.weekday, from: job.scheduledDate)] : defaults))
     }
 
     var body: some View {
@@ -58,6 +62,9 @@ struct EditJobSheet: View {
                         Label("\(durationHours) \(durationHours == 1 ? "hour" : "hours")", systemImage: "clock")
                     }
                     Toggle("Weekly repeat", isOn: $isWeekly)
+                    if isWeekly {
+                        weekdayPicker
+                    }
                 } header: {
                     Label("When", systemImage: "calendar.badge.clock")
                 }
@@ -76,12 +83,51 @@ struct EditJobSheet: View {
                                 date: date,
                                 time: includeTime ? time : nil,
                                 durationHours: durationHours,
+                                recurrenceWeekdays: isWeekly ? recurrenceWeekdays.sorted() : [],
                                 isWeekly: isWeekly
                             )
                         )
                         dismiss()
                     }
                     .disabled(parsedAmount == nil)
+                }
+            }
+            .onChange(of: date) { _, newDate in
+                if isWeekly && recurrenceWeekdays.isEmpty {
+                    recurrenceWeekdays = [Calendar.current.component(.weekday, from: newDate)]
+                }
+            }
+            .onChange(of: isWeekly) { _, weekly in
+                if weekly && recurrenceWeekdays.isEmpty {
+                    recurrenceWeekdays = [Calendar.current.component(.weekday, from: date)]
+                }
+            }
+        }
+    }
+
+    private var weekdayPicker: some View {
+        let weekdays = Array(1...7)
+        let symbols = DateFormatter().shortWeekdaySymbols ?? ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
+
+        return VStack(alignment: .leading, spacing: 8) {
+            Text("Repeats on")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 6), count: 4), spacing: 6) {
+                ForEach(weekdays, id: \.self) { day in
+                    let selected = recurrenceWeekdays.contains(day)
+                    Button(symbols[day - 1]) {
+                        if selected {
+                            recurrenceWeekdays.remove(day)
+                            if recurrenceWeekdays.isEmpty {
+                                recurrenceWeekdays.insert(day)
+                            }
+                        } else {
+                            recurrenceWeekdays.insert(day)
+                        }
+                    }
+                    .buttonStyle(.bordered)
+                    .tint(selected ? .blue : .gray)
                 }
             }
         }

@@ -12,9 +12,12 @@ struct DashboardView: View {
     @State private var showingEditSheet = false
     @State private var deletingJob: Job?
     @State private var monthTotal = 0.0
+    @State private var monthTotalAnimationTask: Task<Void, Never>?
     @State private var saveErrorMessage: String?
-    @State private var successMessage: String?
-    @State private var successAnimationTick = 0
+    @State private var showPaymentConfirm = false
+    @State private var paymentConfirmScale: CGFloat = 0.88
+    @State private var paymentConfirmOpacity: Double = 0
+    @State private var paymentConfirmTask: Task<Void, Never>?
 
     private var upcomingJobs: [Job] {
         JobStore.upcomingJobs(jobs)
@@ -83,7 +86,6 @@ struct DashboardView: View {
                     Text(Currency.gbp(monthTotal))
                         .font(.system(size: 40, weight: .bold, design: .rounded))
                         .contentTransition(.numericText())
-                        .animation(.easeInOut(duration: 0.35), value: monthTotal)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.vertical, 8)
@@ -255,32 +257,64 @@ struct DashboardView: View {
         } message: {
             Text(saveErrorMessage ?? "Please try again.")
         }
-        .overlay(alignment: .bottom) {
-            if let successMessage {
-                Label(successMessage, systemImage: "checkmark.circle.fill")
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 10)
-                    .background(Color.green.opacity(0.95))
-                    .clipShape(Capsule())
-                    .padding(.bottom, 80)
-                    .symbolEffect(.bounce, value: successAnimationTick)
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
+        .overlay {
+            if showPaymentConfirm {
+                VStack(spacing: 12) {
+                    Image(systemName: "checkmark.circle")
+                        .font(.system(size: 86, weight: .regular))
+                        .foregroundStyle(.green)
+                    Text("Payment Sent")
+                        .font(.system(size: 22, weight: .medium))
+                        .foregroundStyle(.primary)
+                }
+                .scaleEffect(paymentConfirmScale)
+                .opacity(paymentConfirmOpacity)
+                .compositingGroup()
+                .allowsHitTesting(false)
             }
         }
-        .animation(.spring(response: 0.3, dampingFraction: 0.85), value: successMessage)
+        .animation(.easeOut(duration: 0.22), value: paymentConfirmScale)
+        .animation(.easeOut(duration: 0.22), value: paymentConfirmOpacity)
         .task {
-            refreshMonthTotal()
+            refreshMonthTotal(animated: false)
         }
         .onChange(of: jobs.count) { _, _ in
             refreshMonthTotal()
         }
     }
 
-    private func refreshMonthTotal() {
-        withAnimation {
-            monthTotal = JobStore.thisMonthEarnings(from: jobs)
+    private func refreshMonthTotal(animated: Bool = true) {
+        let target = JobStore.thisMonthEarnings(from: jobs)
+        guard animated else {
+            monthTotalAnimationTask?.cancel()
+            monthTotal = target
+            return
+        }
+        animateMonthTotal(to: target)
+    }
+
+    private func animateMonthTotal(to target: Double, duration: Double = 0.75) {
+        monthTotalAnimationTask?.cancel()
+        let start = monthTotal
+        let delta = target - start
+        guard abs(delta) > 0.005 else {
+            monthTotal = target
+            return
+        }
+
+        monthTotalAnimationTask = Task { @MainActor in
+            let frames = 30
+            for frame in 1...frames {
+                if Task.isCancelled { return }
+                let t = Double(frame) / Double(frames)
+                // Smooth easing for a fintech-like balance count-up.
+                let eased = 1 - pow(1 - t, 3)
+                monthTotal = start + (delta * eased)
+                try? await Task.sleep(
+                    nanoseconds: UInt64((duration / Double(frames)) * 1_000_000_000)
+                )
+            }
+            monthTotal = target
         }
     }
 
@@ -368,15 +402,7 @@ struct DashboardView: View {
         do {
             try context.save()
             refreshMonthTotal()
-            let name = JobStore.decryptedName(for: job.contact)
-            successMessage = "Paid \(Currency.gbp(amount)) from \(name)"
-            successAnimationTick += 1
-            Task { @MainActor in
-                try? await Task.sleep(nanoseconds: 1_600_000_000)
-                if self.successMessage != nil {
-                    self.successMessage = nil
-                }
-            }
+            playPaymentSentAnimation()
         } catch {
             saveErrorMessage = "Failed to collect payment. \(error.localizedDescription)"
         }
@@ -422,5 +448,30 @@ struct DashboardView: View {
             .min() ?? 7
 
         return calendar.date(byAdding: .day, value: nextOffset, to: start) ?? start
+    }
+
+    private func playPaymentSentAnimation() {
+        paymentConfirmTask?.cancel()
+        showPaymentConfirm = true
+        paymentConfirmScale = 0.88
+        paymentConfirmOpacity = 0
+
+        withAnimation {
+            paymentConfirmScale = 1
+            paymentConfirmOpacity = 1
+        }
+
+        paymentConfirmTask = Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 650_000_000)
+            withAnimation {
+                paymentConfirmScale = 1.02
+            }
+            try? await Task.sleep(nanoseconds: 450_000_000)
+            withAnimation {
+                paymentConfirmOpacity = 0
+            }
+            try? await Task.sleep(nanoseconds: 220_000_000)
+            showPaymentConfirm = false
+        }
     }
 }

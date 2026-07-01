@@ -95,7 +95,7 @@ struct DashboardView: View {
                         .font(.headline)
                         .foregroundStyle(.secondary)
 
-                    Text(Currency.gbp(monthTotal))
+                    Text(Currency.gbpWhole(monthTotal))
                         .font(.system(size: 40, weight: .bold, design: .rounded))
                         .contentTransition(.numericText())
                 }
@@ -141,18 +141,20 @@ struct DashboardView: View {
                 HStack {
                     Label("Jobs", systemImage: "calendar")
                     Spacer()
-                    NavigationLink {
-                        manageJobsDestination
-                    } label: {
-                        Text(jobsThisWeekLabel)
-                            .font(.caption.weight(.semibold))
-                            .foregroundStyle(.secondary)
-                            .padding(.horizontal, 10)
-                            .padding(.vertical, 5)
-                            .background(Color.secondary.opacity(0.1))
-                            .clipShape(Capsule())
+                    if jobsThisWeekCount > 0 {
+                        NavigationLink {
+                            manageJobsDestination
+                        } label: {
+                            Text(jobsThisWeekLabel)
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(.secondary)
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 5)
+                                .background(Color.secondary.opacity(0.1))
+                                .clipShape(Capsule())
+                        }
+                        .buttonStyle(.plain)
                     }
-                    .buttonStyle(.plain)
                 }
             }
 
@@ -190,6 +192,9 @@ struct DashboardView: View {
             } header: {
                 Label("Recent payments", systemImage: "clock.arrow.circlepath")
             }
+        }
+        .refreshable {
+            refreshMonthTotal(animated: false)
         }
         .navigationTitle("Dashboard")
         .toolbar {

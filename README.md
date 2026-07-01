@@ -2,6 +2,8 @@
 
 A lightweight iOS app for tracking cleaning jobs, hours worked, and incoming cash payments — built to replace scattered notes with one simple, organized place.
 
+Built with Cursor AI to help fix a issue my mum was having.
+
 ## Overview
 
 ZClean was built to help manage a small cleaning business day-to-day. Log jobs as they happen, track how long each one takes, and keep a running record of payments — all from your iPhone.

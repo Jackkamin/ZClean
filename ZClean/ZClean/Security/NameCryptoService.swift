@@ -11,23 +11,19 @@ enum NameCryptoError: Error {
 final class NameCryptoService {
     static let shared = NameCryptoService()
     private let keyTag = "com.cleaningjob.namekey"
+    // Legacy prefix support for records written during fallback period.
     private let fallbackPrefix = "plain:"
 
     private init() {}
 
     func encrypt(_ plainName: String) throws -> Data {
-        do {
-            let key = try fetchOrCreateKey()
-            let plainData = Data(plainName.utf8)
-            let sealed = try AES.GCM.seal(plainData, using: key)
-            guard let combined = sealed.combined else {
-                throw NameCryptoError.badCombinedData
-            }
-            return combined
-        } catch {
-            // Fallback prevents add/got-paid from breaking if Keychain misbehaves.
-            return Data("\(fallbackPrefix)\(plainName)".utf8)
+        let key = try fetchOrCreateKey()
+        let plainData = Data(plainName.utf8)
+        let sealed = try AES.GCM.seal(plainData, using: key)
+        guard let combined = sealed.combined else {
+            throw NameCryptoError.badCombinedData
         }
+        return combined
     }
 
     func decrypt(_ encryptedName: Data) throws -> String {

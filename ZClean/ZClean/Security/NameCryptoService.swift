@@ -87,14 +87,16 @@ final class NameCryptoService {
             kSecAttrAccount as String: keyTag,
             kSecAttrService as String: keyTag,
             kSecValueData as String: data,
-            kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
+            // Must not be ThisDeviceOnly: the key has to migrate with encrypted
+            // backups, or restored databases become undecryptable.
+            kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlock
         ]
 
         let status = SecItemAdd(attributes as CFDictionary, nil)
         if status == errSecDuplicateItem {
             let update: [String: Any] = [
                 kSecValueData as String: data,
-                kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
+                kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlock
             ]
             let updateStatus = SecItemUpdate(identity as CFDictionary, update as CFDictionary)
             guard updateStatus == errSecSuccess else {

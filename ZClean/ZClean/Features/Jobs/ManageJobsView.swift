@@ -38,6 +38,12 @@ struct ManageJobsView: View {
                             Text(JobStore.decryptedName(for: job.contact))
                                 .font(.headline)
                                 .lineLimit(1)
+                            if !job.jobDescription.isEmpty {
+                                Text(job.jobDescription)
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                                    .lineLimit(2)
+                            }
                             Text(metadataText(for: job))
                                 .font(.caption)
                                 .foregroundStyle(.secondary)

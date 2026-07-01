@@ -16,6 +16,7 @@ struct QuickAddSheet: View {
 
     @State private var mode: Mode = .addJob
     @State private var name = ""
+    @State private var jobDescription = ""
     @State private var amountText = ""
     @State private var date = Date()
     @State private var time = Date()
@@ -50,6 +51,11 @@ struct QuickAddSheet: View {
                 Section {
                     TextField("Client name", text: $name)
                         .textInputAutocapitalization(.words)
+
+                    if mode == .addJob {
+                        TextField("Description (optional)", text: $jobDescription, axis: .vertical)
+                            .lineLimit(2...4)
+                    }
 
                     if !recentNames.isEmpty {
                         ScrollView(.horizontal, showsIndicators: false) {
@@ -102,6 +108,7 @@ struct QuickAddSheet: View {
                             onAddJob(
                                 AddJobInput(
                                     clientName: trimmedName,
+                                    jobDescription: jobDescription.trimmingCharacters(in: .whitespacesAndNewlines),
                                     amount: amount,
                                     date: date,
                                     time: time,

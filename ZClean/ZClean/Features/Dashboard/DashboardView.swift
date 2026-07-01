@@ -114,6 +114,7 @@ struct DashboardView: View {
                     ForEach(dashboardJobs) { job in
                         JobRowView(
                             name: JobStore.decryptedName(for: job.contact),
+                            jobDescription: job.jobDescription,
                             amount: job.expectedAmount,
                             scheduledDate: job.scheduledDate,
                             scheduledTime: job.scheduledTime,
@@ -430,6 +431,7 @@ struct DashboardView: View {
                 scheduledTime: job.scheduledTime,
                 durationHours: job.durationHours,
                 recurrenceWeekdays: job.recurrenceWeekdays,
+                jobDescription: job.jobDescription,
                 expectedAmount: job.expectedAmount,
                 isWeekly: true,
                 status: .upcoming
@@ -456,6 +458,7 @@ struct DashboardView: View {
     }
 
     private func edit(job: Job, with input: EditJobInput) {
+        job.jobDescription = input.jobDescription
         job.expectedAmount = input.amount
         job.scheduledDate = input.date
         job.scheduledTime = input.time

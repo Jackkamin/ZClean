@@ -2,6 +2,7 @@ import SwiftUI
 
 struct JobRowView: View {
     let name: String
+    let jobDescription: String
     let amount: Double
     let scheduledDate: Date
     let scheduledTime: Date?
@@ -20,6 +21,14 @@ struct JobRowView: View {
                     Text(name)
                         .font(.headline)
                         .lineLimit(1)
+
+                    if !jobDescription.isEmpty {
+                        Text(jobDescription)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(2)
+                            .truncationMode(.tail)
+                    }
 
                     Text(dateText)
                         .font(.caption)

@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct EditJobInput {
+    var jobDescription: String
     var amount: Double
     var date: Date
     var time: Date?
@@ -14,6 +15,7 @@ struct EditJobSheet: View {
     let onSave: (EditJobInput) -> Void
 
     @Environment(\.dismiss) private var dismiss
+    @State private var jobDescription: String
     @State private var amountText: String
     @State private var date: Date
     @State private var time: Date
@@ -32,6 +34,7 @@ struct EditJobSheet: View {
     init(job: Job, onSave: @escaping (EditJobInput) -> Void) {
         self.job = job
         self.onSave = onSave
+        _jobDescription = State(initialValue: job.jobDescription)
         _amountText = State(initialValue: String(format: "%.2f", job.expectedAmount))
         _date = State(initialValue: job.scheduledDate)
         _time = State(initialValue: job.scheduledTime ?? .now)
@@ -44,6 +47,12 @@ struct EditJobSheet: View {
     var body: some View {
         NavigationStack {
             Form {
+                Section {
+                    TextField("Description (optional)", text: $jobDescription, axis: .vertical)
+                        .lineLimit(2...4)
+                } header: {
+                    Label("Details", systemImage: "text.alignleft")
+                }
                 Section {
                     TextField("Amount", text: $amountText)
                         .keyboardType(.decimalPad)
@@ -74,6 +83,7 @@ struct EditJobSheet: View {
                         guard let amount = parsedAmount, amount > 0 else { return }
                         onSave(
                             EditJobInput(
+                                jobDescription: jobDescription.trimmingCharacters(in: .whitespacesAndNewlines),
                                 amount: amount,
                                 date: date,
                                 time: time,

@@ -1,46 +1,37 @@
 # ZClean
 
-A lightweight iOS app for tracking cleaning jobs, hours worked, and incoming cash payments — built to replace scattered notes with one simple, organized place.
+An iOS app I built for my mum's cleaning business. She was tracking jobs, hours, and cash payments across scattered notes, so I made one place for all of it: log a job, track when it's done, and see what's been paid and what's still owed.
 
-Built with Cursor AI to help fix a issue my mum was having.
-
-## Overview
-
-ZClean was built to help manage a small cleaning business day-to-day. Log jobs as they happen, track how long each one takes, and keep a running record of payments — all from your iPhone.
+Built with SwiftUI and Cursor as an AI pair programmer — I directed the features and reviewed the code.
 
 ## Features
 
-- **Job Tracker** — Log client name, address, and date for each job
-- **Time Log** — Record start and finish times to track hours worked per job
-- **Cash Tracker** — Note payments as they come in and see what's outstanding
-- **Overview** — Quick summary of jobs completed, hours worked, and cash earned over a given period
+- **Dashboard** — upcoming jobs sorted by how soon they are, with this month's earnings at a glance
+- **Quick add** — log a job in a few taps: client, date, time, expected amount, with weekly recurrence for regular clients
+- **Job management** — edit, complete, or delete jobs; completed jobs record what was actually paid
+- **History** — past jobs with hours worked and cash received
+- **Reminders** — local notifications before upcoming jobs
 
-## Tech Stack
+## How it's built
 
-- Swift
-- SwiftUI (update if using UIKit)
-- Xcode
+- **SwiftUI** for all UI, organised by feature (`Dashboard`, `Jobs`, `More`)
+- **SwiftData** for persistence (`Job` and `Contact` models)
+- **Client name encryption** — client names are real people's personal data, so they're encrypted at rest with AES-GCM (CryptoKit), with the key stored in the iOS Keychain. The key uses `kSecAttrAccessibleAfterFirstUnlock` (not `ThisDeviceOnly`) so encrypted backups restore correctly on a new phone.
+- **UserNotifications** for job reminders
+- Unit tests covering job sorting, monthly earnings, and recurrence serialization
 
 ## Requirements
 
-- Xcode 15+
-- iOS 16+ (adjust to your actual deployment target)
+- Xcode 26+
+- iOS 26+
 
-## Getting Started
+## Running it
 
 1. Clone the repo:
+
    ```bash
-   git clone https://github.com/<your-username>/ZClean.git
+   git clone https://github.com/Jackkamin/ZClean.git
    ```
-2. Open `ZClean.xcodeproj` (or `.xcworkspace`) in Xcode
-3. Build and run on a simulator or connected device
 
-## Roadmap
-
-- [ ] Add feature ideas here
-- [ ] e.g. export data to CSV
-- [ ] e.g. weekly/monthly totals view
-
-## License
-
-Add a license if you plan to share this publicly (MIT is a common simple choice).
+2. Open `ZClean/ZClean.xcodeproj` in Xcode
+3. Build and run on a simulator or device
